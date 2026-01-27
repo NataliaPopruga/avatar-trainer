@@ -1,0 +1,61 @@
+question,count,domain
+How do I reset my password?,44,access
+My account is locked after failed login,36,access
+Can I unlock my account faster?,18,access
+I forgot my username,12,access
+Is phone support available 24/7?,25,service
+How to freeze my card?,40,cards
+My card is lost, what should I do?,38,cards
+I need a card replacement,29,cards
+How long does card delivery take?,22,cards
+Is there a digital card right away?,19,cards
+How to increase transfer limit?,27,transfers
+What is the daily transfer limit?,31,transfers
+Can I cancel a transfer?,34,transfers
+How long do international transfers take?,21,transfers
+What are domestic transfer times?,20,transfers
+What fees apply to international card use?,26,fees
+Do you charge a monthly fee?,33,fees
+How to avoid the monthly fee?,18,fees
+What is the overdraft fee?,24,fees
+How do I enable overdraft protection?,17,fees
+How to open a dispute?,30,disputes
+How long does a dispute take?,23,disputes
+Where can I see dispute status?,16,disputes
+I see a suspicious charge, what now?,28,disputes
+How do I verify my identity?,19,compliance
+Why are you requesting KYC?,14,compliance
+What data can I share with support?,22,compliance
+Do you need my full card number?,41,compliance
+How do I contact chat support?,15,service
+What are chat support hours?,18,service
+How do I escalate an issue?,13,service
+The app keeps crashing, what can I do?,20,app
+How to enable notifications?,17,app
+Notifications are not working, help,14,app
+Can I use my card abroad?,23,fees
+What is the FX fee?,16,fees
+ATM fees internationally?,12,fees
+Can I freeze and unfreeze my card?,11,cards
+How to request a temporary limit increase?,10,transfers
+My transfer is pending, can I stop it?,13,transfers
+How do I report fraud?,22,disputes
+Is there a case ID for disputes?,15,disputes
+Can I reset password without email?,9,access
+How do I update my email?,8,access
+How to change my phone number?,10,access
+What is the secure verification portal?,9,compliance
+What info is needed to verify identity?,12,compliance
+Do you ask for SMS codes?,34,compliance
+I need help with login,17,access
+Account access issues,11,access
+Card replacement fee?,14,cards
+Digital card activation?,9,cards
+How to see my transfer history?,12,transfers
+What is the maximum transfer amount?,13,transfers
+My card was stolen, steps?,20,cards
+Where to find last 4 digits?,8,compliance
+Can I cancel after transfer processing?,7,transfers
+How to track card delivery?,12,cards
+How to contact phone support?,14,service
+Can you guarantee a dispute outcome?,6,disputes

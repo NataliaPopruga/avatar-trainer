@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AdminSession {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+}
+
+model KnowledgeDoc {
+  id         Int              @id @default(autoincrement())
+  title      String
+  content    String
+  createdAt  DateTime         @default(now())
+  chunks     KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id           Int           @id @default(autoincrement())
+  docId        Int
+  chunkText    String
+  createdAt    DateTime      @default(now())
+  metadataJson String
+  doc          KnowledgeDoc  @relation(fields: [docId], references: [id], onDelete: Cascade)
+}
+
+model WebSnippet {
+  id         Int             @id @default(autoincrement())
+  sessionId  Int
+  title      String
+  url        String
+  snippet    String
+  createdAt  DateTime        @default(now())
+  session    TraineeSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model TraineeSession {
+  id               Int           @id @default(autoincrement())
+  traineeName      String
+  mode             String
+  startedAt        DateTime      @default(now())
+  finishedAt       DateTime?
+  scenarioMetaJson String
+  totalScore       Int?
+  passFail         String?
+  turns            Turn[]
+  evaluations      Evaluation[]
+  feedback         Feedback?
+  webSnippets      WebSnippet[]
+}
+
+model Turn {
+  id           Int            @id @default(autoincrement())
+  sessionId    Int
+  role         String
+  text         String
+  createdAt    DateTime       @default(now())
+  evidenceJson String?
+  session      TraineeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  evaluation   Evaluation?
+}
+
+model Evaluation {
+  id                Int            @id @default(autoincrement())
+  sessionId         Int
+  turnId            Int?           @unique
+  scoresJson        String
+  flagsJson         String
+  positivesJson     String
+  mistakesJson      String
+  suggestedAnswer   String
+  evidenceJson      String
+  createdAt         DateTime       @default(now())
+  session           TraineeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  turn              Turn?          @relation(fields: [turnId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id         Int             @id @default(autoincrement())
+  sessionId  Int   @unique
+  csat       Int?
+  comment    String?
+  createdAt  DateTime        @default(now())
+  session    TraineeSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}

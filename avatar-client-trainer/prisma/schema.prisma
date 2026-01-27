@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ScenarioDifficulty {
+  simple
+  hard
+  intolerant
+}
+
+enum ChannelType {
+  chat
+  call
+}
+
+enum PersonaType {
+  calm
+  anxious
+  impatient
+}
+
+enum SessionMode {
+  exam
+  training
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  createdAt DateTime @default(now())
+  sessions  Session[]
+}
+
+model KnowledgeDoc {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  version   String
+  createdAt DateTime @default(now())
+  chunks    KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id         String   @id @default(cuid())
+  docId      String
+  docTitle   String
+  docVersion String
+  text       String
+  createdAt  DateTime @default(now())
+  doc        KnowledgeDoc @relation(fields: [docId], references: [id])
+
+  @@index([docId])
+}
+
+model Question {
+  id        String   @id @default(cuid())
+  question  String
+  count     Int      @default(1)
+  domain    String?
+  intentId  String?
+  createdAt DateTime @default(now())
+  intent    Intent?  @relation(fields: [intentId], references: [id])
+
+  @@index([intentId])
+}
+
+model Intent {
+  id              String   @id @default(cuid())
+  title           String
+  exampleQuestions Json
+  frequencyScore  Int
+  domain          String?
+  createdAt       DateTime @default(now())
+  questions       Question[]
+  scenarios       Scenario[]
+}
+
+model Scenario {
+  id             String   @id @default(cuid())
+  intentId       String
+  difficulty     ScenarioDifficulty
+  persona        PersonaType
+  channel        ChannelType
+  difficultyScore Int
+  jsonBlob       Json
+  createdAt      DateTime @default(now())
+  intent         Intent @relation(fields: [intentId], references: [id])
+  sessions       Session[]
+
+  @@index([intentId])
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  userId      String?
+  mode        SessionMode
+  domain      String?
+  scenarioId  String
+  state       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  turns       Turn[]
+  evaluations Evaluation[]
+  feedback    Feedback?
+  user        User? @relation(fields: [userId], references: [id])
+  scenario    Scenario @relation(fields: [scenarioId], references: [id])
+
+  @@index([scenarioId])
+}
+
+model Turn {
+  id         String   @id @default(cuid())
+  sessionId  String
+  role       String
+  content    String
+  createdAt  DateTime @default(now())
+  session    Session @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+}
+
+model Evaluation {
+  id         String   @id @default(cuid())
+  sessionId  String
+  turnId     String
+  jsonBlob   Json
+  createdAt  DateTime @default(now())
+  session    Session @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@index([turnId])
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  csat      Int?
+  comment   String?
+  createdAt DateTime @default(now())
+  session   Session @relation(fields: [sessionId], references: [id])
+}
