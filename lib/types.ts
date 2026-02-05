@@ -6,7 +6,8 @@ export type Persona =
   | 'elderly'
   | 'corporate'
   | 'impatient'
-  | 'zoomer';
+  | 'zoomer'
+  | 'gopnik';
 export type Difficulty = 'simple' | 'hard' | 'intolerant';
 
 export interface ScenarioArchetype {

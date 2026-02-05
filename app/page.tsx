@@ -30,11 +30,11 @@ export default function Home() {
             Avatar Trainer · CX экзаменатор
           </div>
           <h1 className="text-4xl font-semibold leading-tight text-slate-900 sm:text-5xl">
-            Тренажёр для сложных клиентов: адаптивный аватар, голос и RAG-отчёт за 10 минут.
+            Тренажёр для сотрудников клиентского сервиса с ИИ-оценкой
           </h1>
           <p className="text-lg text-slate-600">
-            Запускайте экзамен или тренировку, получайте отчёт с цитатами из базы знаний и web-сниппетов.
-            Макеты готовы к демо: попробуйте сами или зайдите как админ.
+            Голосовой диалог с виртуальным клиентом, автоматическая оценка и отчёт.
+            Подключайте внутренние инструкции и FAQ — чтобы проверка соответствовала правилам компании.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild size="lg">
@@ -67,13 +67,13 @@ export default function Home() {
               <div className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-soft">
                 <div>
                   <p className="text-sm text-slate-500">Текущий раунд</p>
-                  <p className="text-2xl font-semibold text-slate-900">Деэскалация</p>
+                  <p className="text-2xl font-semibold text-slate-900">Раунд не начат</p>
                 </div>
-                <div className="rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-700">Шаг 3 из 8</div>
+                <div className="rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-700">Шаг 0 из 8</div>
               </div>
               <div className="rounded-2xl bg-slate-900 p-5 text-white shadow-lg">
                 <p className="text-xs uppercase tracking-wide text-slate-300">Аватар (молодёжный)</p>
-                <p className="mt-3 text-lg">&quot;Эй, давай по-быстрому разрулим комиссию, только без запросов кодов&quot;</p>
+                <p className="mt-3 text-lg">&quot;Готов начать, подскажите вашу задачу&quot;</p>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3 pt-6">

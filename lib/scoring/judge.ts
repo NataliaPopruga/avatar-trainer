@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { retrieveChunks } from '@/lib/providers/retrieval';
 import { ScenarioPlan } from '@/lib/types';
+import { applyRules, criticalPatterns, detectRegulationReference } from './rules';
+import { detectAbuse } from '@/lib/moderation/profanity';
 
 const evaluationSchema = z.object({
   scores: z.object({
@@ -13,101 +15,142 @@ const evaluationSchema = z.object({
   positives: z.array(z.string()),
   mistakes: z.array(z.string()),
   suggested: z.string(),
+  // evidence может приходить как из RAG (chunkId/docId/score),
+  // так и наши rule-based факты (id/ruleId/evidence[]). Даем более свободную схему.
   evidence: z.array(
-    z.object({
-      chunkId: z.number().optional(),
-      docId: z.number().optional(),
-      text: z.string(),
-      title: z.string().optional(),
-      score: z.number().optional(),
-      source: z.string().optional(),
-    })
+    z.union([
+      z.object({
+        chunkId: z.number().optional(),
+        docId: z.number().optional(),
+        text: z.string().optional(),
+        title: z.string().optional(),
+        score: z.number().optional(),
+        source: z.string().optional(),
+      }),
+      z.object({
+        id: z.string().optional(),
+        title: z.string().optional(),
+        category: z.string().optional(),
+        ruleId: z.string().optional(),
+        evidence: z.any().optional(),
+      }),
+      z.record(z.any()),
+    ])
   ),
   total: z.number(),
   pass: z.boolean(),
+  explain: z.any(),
 });
 
 function clamp(n: number) {
   return Math.max(0, Math.min(100, n));
 }
 
-const bannedPatterns = [/\b\d{4} \d{4} \d{4} \d{4}\b/, /cvv/i, /pin/i, /otp/i];
-
-function complianceScore(answer: string) {
-  let score = 90;
-  const flags: string[] = [];
-  if (bannedPatterns.some((r) => r.test(answer))) {
-    score = 35;
-    flags.push('PII_DETECTED');
-  }
-  if (/обещаю|гарантирую/i.test(answer)) {
-    score -= 15;
-    flags.push('OVERPROMISE');
-  }
-  if (!/не (видит|запрашиваем|нужны) данные/i.test(answer)) {
-    score -= 5;
-  }
-  return { score: clamp(score), flags };
-}
-
-function softSkillsScore(answer: string) {
-  let score = 70;
-  if (/понимаю|вижу|сожалею|простите|давайте/i.test(answer)) score += 10;
-  if (/пожалуйста|можете|готов/i.test(answer)) score += 5;
-  if (answer.length < 40) score -= 10;
-  return clamp(score);
-}
-
-function deEscalationScore(answer: string, plan: ScenarioPlan) {
-  let score = 60;
-  if (plan.difficulty === 'intolerant') score -= 10;
-  if (/давайте.*решим|я помогу|держу вас в курсе|сейчас проверю/i.test(answer)) score += 15;
-  if (/успокойтесь|тише/i.test(answer)) score -= 10;
-  return clamp(score);
-}
-
 export async function judgeAnswer(answer: string, plan: ScenarioPlan) {
-  const evidence = await retrieveChunks(answer, 3);
-  const hasEvidence = evidence.length > 0;
-  let correctness = hasEvidence ? 70 + Math.min(20, evidence[0]?.score ?? 0) : 35;
-  if (/не знаю|затрудняюсь/i.test(answer)) correctness -= 15;
-  correctness = clamp(correctness);
+  const chunks = await retrieveChunks(answer, 3);
+  const { abuse, result, percentage, signals } = applyRules(answer);
+  const flags: string[] = [];
 
-  const compliance = complianceScore(answer);
-  const softSkills = softSkillsScore(answer);
-  const deEscalation = deEscalationScore(answer, plan);
+  const criticalPII = signals.pii;
+  if (criticalPII) flags.push('PII_DETECTED_STRONG');
+  if (abuse.isAbusive) flags.push('ABUSE_PROFANITY');
 
-  const total = clamp(Math.round(correctness * 0.35 + compliance.score * 0.35 + softSkills * 0.2 + deEscalation * 0.1));
-  const pass = compliance.score >= 85 && total >= 70 && !compliance.flags.includes('PII_DETECTED');
-
-  const positives: string[] = [];
-  if (softSkills >= 75) positives.push('Хорошая эмпатия и структура ответа');
-  if (hasEvidence) positives.push('Ссылается на регламент');
-
-  const mistakes: string[] = [];
-  if (!hasEvidence) {
-    mistakes.push('Недостаточно ссылок на базу знаний');
-    compliance.flags.push('INSUFFICIENT_EVIDENCE');
-  }
-  if (compliance.flags.includes('PII_DETECTED')) mistakes.push('Запрос конфиденциальных данных недопустим');
-
-  const suggested = `Сошлитесь на регламент (${plan.facts[0] || 'правила сервиса'}), предложите шаги и предупредите, что не запрашиваете коды/карты.`;
-
-  const result = {
-    scores: {
-      correctness,
-      compliance: compliance.score,
-      softSkills,
-      deEscalation,
-    },
-    flags: compliance.flags,
-    positives,
-    mistakes,
-    suggested,
-    evidence,
-    total,
-    pass,
+  const scores = {
+    correctness: percentage('correctness'),
+    compliance: percentage('compliance'),
+    softSkills: percentage('softSkills'),
+    deEscalation: percentage('deEscalation'),
   };
 
-  return evaluationSchema.parse(result);
+  if (abuse.isAbusive || criticalPII) {
+    scores.compliance = 0;
+    scores.softSkills = 0;
+    scores.deEscalation = 0;
+  }
+
+  const total = clamp(Math.round(scores.correctness * 0.35 + scores.compliance * 0.35 + scores.softSkills * 0.2 + scores.deEscalation * 0.1));
+  const pass = scores.compliance >= 85 && total >= 70 && !abuse.isAbusive && !criticalPII;
+
+  const strengths: any[] = [];
+  const mistakes: any[] = [];
+
+  const addStrength = (id: string, title: string, metric: string) =>
+    strengths.push({
+      id,
+      title,
+      metric,
+      category: 'strength',
+      ruleId: id,
+      evidence: [{ turnId: 'current', role: 'agent', quote: answer, reason: title }],
+    });
+  const addMistake = (id: string, title: string, metric: string, severity: 'minor' | 'major' | 'critical' = 'major') =>
+    mistakes.push({
+      id,
+      title,
+      metric,
+      severity,
+      category: 'mistake',
+      ruleId: id,
+      evidence: [{ turnId: 'current', role: 'agent', quote: answer, reason: title }],
+    });
+
+  if (signals.hasEmpathy) addStrength('EMPATHY', 'Есть эмпатия/признание проблемы', 'softSkills');
+  if (signals.hasPlan) addStrength('PLAN', 'Есть конкретный следующий шаг', 'correctness');
+  if (!criticalPII && !abuse.isAbusive) addStrength('COMPLIANCE_OK', 'Соблюдены правила безопасности', 'compliance');
+
+  if (signals.noAnswer) addMistake('NO_ANSWER', 'Нет ответа по сути или уверенности', 'correctness');
+  if (signals.noPlan) addMistake('NO_PLAN', 'Нет конкретного шага или действия', 'correctness');
+  if (signals.noEmpathy) addMistake('NO_EMPATHY', 'Нет признания проблемы/эмпатии', 'softSkills', 'minor');
+  if (criticalPII) addMistake('PII_REQUEST', 'Запрос конфиденциальных данных недопустим', 'compliance', 'critical');
+  if (abuse.isAbusive) addMistake('ABUSE', 'Недопустимый тон/хамство', 'compliance', 'critical');
+  if (signals.overpromise) addMistake('OVERPROMISE', 'Обещание результата без проверки', 'compliance', 'major');
+
+  const regRef = detectRegulationReference(answer);
+
+  const evidence = [
+    ...chunks.map((c) => ({ ...c, category: 'source' as const })),
+    ...strengths,
+    ...mistakes,
+  ];
+
+  const topicText = (plan?.goal || '').toLowerCase();
+  const scenarioHint =
+    topicText.includes('накоп') || topicText.includes('вклад')
+      ? 'Понимаю, сейчас подскажу. Уточните, нужен накопительный счёт с пополнением или вклад на срок? В приложении: «Счета и вклады» → «Открыть» → «Накопительный счёт», выберите сумму/условия. Процент зависит от тарифа и остатка; назову точнее, если скажете ваш тариф.'
+      : 'Признайте проблему, уточните детали запроса, предложите конкретный шаг и срок решения.';
+  const suggested = scenarioHint;
+
+  const explain = {
+    correctness: { ...result.correctness, percent: scores.correctness },
+    compliance: { ...result.compliance, percent: scores.compliance },
+    softSkills: { ...result.softSkills, percent: scores.softSkills },
+    deEscalation: { ...result.deEscalation, percent: scores.deEscalation },
+    signals,
+    critical: { abuse: abuse.matched, pii: criticalPII },
+  };
+
+  const out = {
+    scores,
+    flags,
+    positives: strengths.map((s) => s.title),
+    mistakes: mistakes.map((m) => m.title),
+    suggested,
+    evidence: regRef
+      ? [
+          ...evidence,
+          {
+            id: 'ref-reg',
+            title: 'Ссылка на регламент',
+            category: 'strength',
+            ruleId: 'reference_regulation',
+            evidence: [{ turnId: 'current', role: 'agent', quote: regRef.quote, reason: regRef.reason }],
+          },
+        ]
+      : evidence,
+    total,
+    pass,
+    explain,
+  };
+
+  return evaluationSchema.parse(out);
 }

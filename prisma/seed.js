@@ -120,10 +120,40 @@ async function seedZoomerSession() {
   return session;
 }
 
+async function seedGopnikSession() {
+  const existing = await prisma.traineeSession.findUnique({ where: { id: 5 } });
+  if (existing) return existing;
+  const scenarioMeta = {
+    plan: {
+      archetypeId: 'card_blocked_call_v1',
+      persona: 'gopnik',
+      difficulty: 'hard',
+      goal: 'card_blocked_call',
+      channel: 'call',
+    },
+    stepsTotal: 9,
+    currentStep: 0,
+  };
+  const session = await prisma.traineeSession.create({
+    data: {
+      id: 5,
+      traineeName: 'Card Block Demo',
+      mode: 'exam',
+      scenarioMetaJson: JSON.stringify(scenarioMeta),
+      startedAt: new Date(),
+    },
+  });
+  await prisma.turn.create({
+    data: { sessionId: session.id, role: 'client', text: 'Здравствуйте. Мою карту заблокировали на кассе, платеж не прошел.' },
+  });
+  return session;
+}
+
 async function main() {
   await seedKnowledge();
   await seedDemoSession();
   await seedZoomerSession();
+  await seedGopnikSession();
 }
 
 main()

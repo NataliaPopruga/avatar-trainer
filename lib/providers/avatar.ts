@@ -1,6 +1,6 @@
 import { Persona } from '@/lib/types';
 
-export type AvatarProvider = 'mock' | 'heygen' | 'tavus';
+export type AvatarProvider = 'mock' | 'heygen' | 'tavus' | 'vrm';
 
 const personaMap: Record<Persona, string> = {
   calm: '/avatars/calm.png',
@@ -11,6 +11,7 @@ const personaMap: Record<Persona, string> = {
   corporate: '/avatars/corporate.png',
   impatient: '/avatars/impatient.png',
   zoomer: '/avatars/zoomer.svg',
+  gopnik: '/avatars/gopnik.jpg',
 };
 
 export function avatarForPersona(persona: Persona) {
@@ -19,6 +20,6 @@ export function avatarForPersona(persona: Persona) {
 
 export function currentAvatarProvider(): AvatarProvider {
   const value = process.env.AVATAR_PROVIDER as AvatarProvider | undefined;
-  if (value === 'heygen' || value === 'tavus') return value;
+  if (value === 'heygen' || value === 'tavus' || value === 'vrm') return value;
   return 'mock';
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 type Turn = {
   id: string;
@@ -22,6 +22,60 @@ type Evaluation = {
   evidence: Array<{ docTitle: string; snippet: string }>;
 };
 
+// Простая валидация ответа (можно импортировать из общей библиотеки)
+function analyzeAnswer(text: string) {
+  const trimmed = text.trim();
+  const length = trimmed.length;
+  const hints: string[] = [];
+  const warnings: string[] = [];
+  const missingElements: string[] = [];
+
+  if (length < 40) {
+    hints.push(`Ответ слишком короткий (${length} символов). Рекомендуется минимум 40 символов.`);
+  }
+
+  // Проверка на запрещенные паттерны
+  if (/\b\d{4} \d{4} \d{4} \d{4}\b/.test(trimmed)) {
+    warnings.push('Не запрашивайте полный номер карты');
+  }
+  if (/cvv|код безопасности/i.test(trimmed)) {
+    warnings.push('Не запрашивайте CVV код');
+  }
+  if (/pin|пин/i.test(trimmed)) {
+    warnings.push('Не запрашивайте PIN код');
+  }
+  if (/точно\s+(разблокир|откро|сдела)/i.test(trimmed)) {
+    warnings.push('Избегайте абсолютных обещаний без проверки');
+  }
+
+  // Проверка элементов
+  const hasEmpathy = /понимаю|вижу|сожалею|простите/i.test(trimmed);
+  const hasAction = /давайте|сейчас|проверю|помогу|решим/i.test(trimmed);
+  const hasTimeframe = /в течение|через|за|до|сегодня|завтра/i.test(trimmed);
+
+  if (!hasEmpathy) {
+    missingElements.push('Признание проблемы клиента');
+  }
+  if (!hasAction) {
+    missingElements.push('Конкретные шаги или действия');
+  }
+  if (!hasTimeframe) {
+    missingElements.push('Указание сроков решения');
+  }
+
+  const score = Math.min(100, Math.max(0, 
+    50 + 
+    (length >= 40 ? 10 : 0) +
+    (length >= 80 ? 5 : 0) +
+    (hasEmpathy ? 10 : 0) +
+    (hasAction ? 10 : 0) +
+    (hasTimeframe ? 5 : 0) +
+    (warnings.length === 0 ? 10 : 0)
+  ));
+
+  return { hints, warnings, missingElements, score, isValid: length >= 40 && warnings.length === 0 };
+}
+
 export default function SessionClient({
   sessionId,
   initialTurns,
@@ -38,6 +92,12 @@ export default function SessionClient({
   const [status, setStatus] = useState("");
   const [csat, setCsat] = useState(5);
   const [comment, setComment] = useState("");
+  const [showHints, setShowHints] = useState(true);
+
+  const analysis = useMemo(() => {
+    if (!answer.trim() || answer.trim().length < 10) return null;
+    return analyzeAnswer(answer);
+  }, [answer]);
 
   const readJsonSafe = async (res: Response) => {
     try {
@@ -50,6 +110,15 @@ export default function SessionClient({
 
   const handleSend = async () => {
     if (!answer.trim()) return;
+    
+    // Предупреждение при наличии критических ошибок
+    if (analysis && analysis.warnings.length > 0) {
+      const proceed = confirm(
+        `Внимание! В ответе обнаружены проблемы:\n\n${analysis.warnings.join('\n')}\n\nВсе равно отправить?`
+      );
+      if (!proceed) return;
+    }
+    
     setStatus("Идёт оценка...");
     const managerTurn: Turn = {
       id: `local-${Date.now()}`,
@@ -113,20 +182,107 @@ export default function SessionClient({
         </div>
 
         {!done && (
-          <div className="mt-6 flex gap-3">
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              rows={3}
-              className="w-full rounded-xl border border-purple-200 px-3 py-2 text-sm"
-              placeholder="Ответ менеджера..."
-            />
-            <button
-              onClick={handleSend}
-              className="h-fit rounded-full bg-purple-700 px-4 py-2 text-sm text-white"
-            >
-              Отправить
-            </button>
+          <div className="mt-6 space-y-3">
+            <div className="flex gap-3">
+              <div className="flex-1 relative">
+                <textarea
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  rows={4}
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                    analysis && analysis.warnings.length > 0
+                      ? 'border-rose-300 focus:border-rose-500'
+                      : analysis && analysis.score >= 80
+                      ? 'border-emerald-300 focus:border-emerald-500'
+                      : 'border-purple-200 focus:border-purple-400'
+                  }`}
+                  placeholder="Ответ менеджера: признайте проблему клиента, предложите конкретные шаги решения и укажите сроки..."
+                />
+                {analysis && answer.trim().length >= 10 && (
+                  <div className="absolute right-3 top-2">
+                    <span className={`text-xs font-medium ${
+                      analysis.score >= 80 ? 'text-emerald-600' :
+                      analysis.score >= 60 ? 'text-amber-600' :
+                      'text-rose-600'
+                    }`}>
+                      {analysis.score}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleSend}
+                disabled={!answer.trim()}
+                className={`h-fit rounded-full px-4 py-2 text-sm text-white ${
+                  analysis && analysis.warnings.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-purple-700 hover:bg-purple-800'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Отправить
+              </button>
+            </div>
+            
+            {analysis && answer.trim().length >= 10 && showHints && (
+              <div className="space-y-2 rounded-xl border border-purple-100 bg-purple-50 p-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-medium ${
+                      analysis.score >= 80 ? 'text-emerald-700' :
+                      analysis.score >= 60 ? 'text-amber-700' :
+                      'text-rose-700'
+                    }`}>
+                      {analysis.score >= 80 ? 'Отличный ответ' :
+                       analysis.score >= 60 ? 'Хороший ответ' :
+                       'Требует улучшения'} ({answer.trim().length} символов)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowHints(!showHints)}
+                    className="text-purple-600 hover:text-purple-800"
+                  >
+                    Скрыть
+                  </button>
+                </div>
+                
+                {analysis.warnings.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {analysis.warnings.map((warning, idx) => (
+                      <div key={idx} className="text-rose-700">
+                        ⚠️ {warning}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {analysis.missingElements.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    <div className="font-medium text-purple-800 mb-1">Отсутствует:</div>
+                    {analysis.missingElements.map((element, idx) => (
+                      <div key={idx} className="text-amber-700">
+                        ℹ️ {element}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {analysis.hints.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {analysis.hints.map((hint, idx) => (
+                      <div key={idx} className="text-purple-700">
+                        💡 {hint}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {analysis.score >= 80 && analysis.warnings.length === 0 && (
+                  <div className="text-emerald-700 mt-2">
+                    ✓ Ответ выглядит полноценным и готов к отправке
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

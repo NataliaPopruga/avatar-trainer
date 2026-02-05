@@ -6,6 +6,9 @@ import { AdminLogin } from './admin-login';
 import { Button } from '@/components/ui/button';
 import { prisma } from '@/lib/prisma';
 import { ArrowRight, FilePlus2, ListChecks } from 'lucide-react';
+import { AdminLogout } from './admin-logout';
+import nextDynamic from 'next/dynamic';
+const WebSourcesPanelDynamic = nextDynamic(() => import('./web-sources-panel').then(m => m.WebSourcesPanel), { ssr: false });
 
 export const dynamic = 'force-dynamic';
 
@@ -38,27 +41,32 @@ export default async function AdminPage() {
           <h1 className="text-3xl font-semibold text-slate-900">Контент и отчёты</h1>
           <p className="text-slate-600">Управляйте базой знаний, источниками и смотрите отчёты.</p>
         </div>
-        <Badge className="bg-emerald-100 text-emerald-700">PIN принят</Badge>
+        <div className="flex items-center gap-3">
+          <Badge className="bg-emerald-100 text-emerald-700">PIN принят</Badge>
+          <AdminLogout />
+        </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardContent className="space-y-3 p-5">
+      <div className="grid items-stretch gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <Card className="h-full">
+          <CardContent className="flex h-full flex-col gap-4 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Документы в KB</p>
+                <p className="text-sm text-slate-500">Документы в базе знаний</p>
                 <p className="text-2xl font-semibold text-slate-900">{docsCount}</p>
               </div>
               <FilePlus2 className="h-5 w-5 text-brand-600" />
             </div>
-            <Button asChild variant="outline" className="w-full">
+            <div className="mt-auto">
+              <Button asChild variant="ghost" className="w-full justify-between">
               <Link href="/admin/knowledge" className="flex items-center justify-between">
                 Загрузить файлы <ArrowRight className="h-4 w-4" />
               </Link>
-            </Button>
+              </Button>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="space-y-3 p-5">
+        <Card className="h-full">
+          <CardContent className="flex h-full flex-col gap-4 p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-500">Отчётов всего</p>
@@ -66,20 +74,18 @@ export default async function AdminPage() {
               </div>
               <ListChecks className="h-5 w-5 text-brand-600" />
             </div>
-            <Button asChild variant="outline" className="w-full">
+            <div className="mt-auto">
+              <Button asChild variant="ghost" className="w-full justify-between">
               <Link href="/admin/reports" className="flex items-center justify-between">
                 Открыть отчёты <ArrowRight className="h-4 w-4" />
               </Link>
-            </Button>
+              </Button>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="space-y-3 p-5">
-            <p className="text-sm text-slate-500">Интернет-источники</p>
-            <p className="text-slate-700">Web search за флагом USE_WEB=true. Domens allowlist через ENV.</p>
-            <Badge className="bg-slate-100 text-slate-700">Tavily</Badge>
-          </CardContent>
-        </Card>
+        <div className="xl:col-span-2">
+          <WebSourcesPanelDynamic />
+        </div>
       </div>
     </main>
   );

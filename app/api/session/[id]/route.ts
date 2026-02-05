@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ZOOMER_SCRIPT } from '@/lib/demo/zoomerScript';
+import { CARD_BLOCKED_PLAN, CARD_BLOCKED_SCRIPT } from '@/lib/demo/cardBlockedScript';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const sessionId = Number(params.id);
@@ -17,6 +18,13 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     session.scenarioMetaJson = JSON.stringify({
       plan: { persona: 'zoomer', difficulty: 'hard', goal: 'slang faq', archetypeId: 'demo' },
       stepsTotal: ZOOMER_SCRIPT.length,
+      currentStep: 0,
+    });
+  }
+  if (sessionId === 5) {
+    session.scenarioMetaJson = JSON.stringify({
+      plan: { ...CARD_BLOCKED_PLAN, channel: 'call' },
+      stepsTotal: CARD_BLOCKED_SCRIPT.length,
       currentStep: 0,
     });
   }

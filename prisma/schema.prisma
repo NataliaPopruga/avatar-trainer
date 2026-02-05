@@ -77,6 +77,7 @@ model Evaluation {
   mistakesJson      String
   suggestedAnswer   String
   evidenceJson      String
+  explainJson       String         @default("{}")
   createdAt         DateTime       @default(now())
   session           TraineeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   turn              Turn?          @relation(fields: [turnId], references: [id], onDelete: Cascade)
@@ -89,4 +90,20 @@ model Feedback {
   comment    String?
   createdAt  DateTime        @default(now())
   session    TraineeSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model WebSource {
+  id        Int      @id @default(autoincrement())
+  label     String
+  domain    String
+  priority  Int      @default(0)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model WebConfig {
+  id         Int      @id @default(1)
+  webEnabled Boolean  @default(true)
+  placeholderEnabled Boolean @default(true)
+  updatedAt  DateTime @updatedAt
 }

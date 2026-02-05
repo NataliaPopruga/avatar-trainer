@@ -1,4 +1,5 @@
 import { WebSnippet } from '@prisma/client';
+import { listWebSources, getWebConfig } from '@/lib/web-config';
 
 export interface WebSearchResult {
   title: string;
@@ -18,10 +19,14 @@ function mockResults(query: string): WebSearchResult[] {
   ];
 }
 
-export async function performWebSearch(query: string, allowDomains?: string[]): Promise<WebSearchResult[]> {
-  const useWeb = process.env.USE_WEB === 'true';
+export async function performWebSearch(query: string): Promise<WebSearchResult[]> {
+  const cfg = await getWebConfig();
+  const useWebFlag = process.env.USE_WEB === 'true';
+  if (!cfg.webEnabled || !useWebFlag) return [];
+  const allowlist = (await listWebSources()).filter((s) => s.enabled);
   const apiKey = process.env.TAVILY_API_KEY;
-  if (!useWeb || !apiKey) return mockResults(query);
+  if (!apiKey) return [];
+  const include_domains = allowlist.length ? allowlist.map((s) => s.domain) : undefined;
   try {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
@@ -29,9 +34,9 @@ export async function performWebSearch(query: string, allowDomains?: string[]): 
         'Content-Type': 'application/json',
         'X-API-Key': apiKey,
       },
-      body: JSON.stringify({ query, include_domains: allowDomains, max_results: 3 }),
+      body: JSON.stringify({ query, include_domains, max_results: 3 }),
     });
-    if (!res.ok) return mockResults(query);
+    if (!res.ok) return [];
     const data = await res.json();
     return (data.results || []).map((item: any) => ({
       title: item.title,
@@ -41,7 +46,7 @@ export async function performWebSearch(query: string, allowDomains?: string[]): 
     }));
   } catch (err) {
     console.error('Web search failed', err);
-    return mockResults(query);
+    return [];
   }
 }
 

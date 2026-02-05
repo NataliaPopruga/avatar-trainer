@@ -1,19 +1,6 @@
 'use client';
-import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-
-const MOUTH_SHAPES: Record<string, { width: number; height: number; ry: number }> = {
-  A: { width: 110, height: 34, ry: 16 },
-  B: { width: 120, height: 60, ry: 26 },
-  C: { width: 90, height: 22, ry: 10 },
-  D: { width: 110, height: 48, ry: 22 },
-  E: { width: 80, height: 18, ry: 8 },
-  F: { width: 70, height: 14, ry: 6 },
-  G: { width: 95, height: 36, ry: 16 },
-  H: { width: 100, height: 40, ry: 20 },
-  X: { width: 0, height: 0, ry: 0 },
-};
 
 export interface MouthCue {
   start: number;
@@ -22,20 +9,24 @@ export interface MouthCue {
 }
 
 interface Props {
-  avatarUrl: string;
+  avatarUrl: string; // kept for compatibility, not used now
   audioSrc?: string;
   mouthCues?: MouthCue[];
+  speaking?: boolean;
 }
 
-export function LipSyncAvatar({ avatarUrl, audioSrc, mouthCues = [] }: Props) {
+// Simple audio visualizer: animated bars driven by analyser or speaking flag
+export function LipSyncAvatar({ audioSrc, mouthCues = [], speaking = false }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [viseme, setViseme] = useState<string>('X');
-  const [playing, setPlaying] = useState(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const [levels, setLevels] = useState<number[]>(() => Array(12).fill(2));
+  const [playing, setPlaying] = useState(false);
 
+  // Drive levels from audio or mouth cues
   useEffect(() => {
     if (!audioSrc) return;
     const audio = new Audio(audioSrc);
+    audio.playbackRate = 0.92;
     audioRef.current = audio;
     const ctx = new AudioContext();
     const source = ctx.createMediaElementSource(audio);
@@ -50,13 +41,15 @@ export function LipSyncAvatar({ avatarUrl, audioSrc, mouthCues = [] }: Props) {
       if (!audioRef.current) return;
       const t = audioRef.current.currentTime;
       const cue = mouthCues.find((c) => t >= c.start && t <= c.end);
+
       if (cue) {
-        setViseme(cue.value);
+        const amp = Math.min(100, (cue.value.charCodeAt(0) % 10) * 10);
+        setLevels((prev) => prev.map((_, i) => (i % 3 === 0 ? amp : Math.max(6, amp - i * 2))));
       } else if (analyserRef.current) {
         const data = new Uint8Array(analyserRef.current.fftSize);
         analyserRef.current.getByteTimeDomainData(data);
         const amp = data.reduce((a, b) => a + Math.abs(b - 128), 0) / data.length;
-        setViseme(amp > 8 ? 'D' : 'X');
+        setLevels((_) => Array(12).fill(0).map((__, i) => Math.min(100, amp * (0.6 + i * 0.02))));
       }
       raf = requestAnimationFrame(loop);
     };
@@ -79,41 +72,61 @@ export function LipSyncAvatar({ avatarUrl, audioSrc, mouthCues = [] }: Props) {
     };
   }, [audioSrc, mouthCues]);
 
-  const mouthShape = useMemo(() => {
-    return MOUTH_SHAPES[viseme] || MOUTH_SHAPES['X'];
-  }, [viseme]);
+  // Idle speaking animation when no audioSrc (browser TTS path)
+  useEffect(() => {
+    if (audioSrc) return;
+    if (!speaking) {
+      setLevels(Array(12).fill(2));
+      setPlaying(false);
+      return;
+    }
+    setPlaying(true);
+    const timer = setInterval(() => {
+      setLevels((prev) =>
+        prev.map(() => Math.max(4, 8 + Math.random() * 70))
+      );
+    }, 140);
+    return () => {
+      clearInterval(timer);
+      setLevels(Array(12).fill(2));
+      setPlaying(false);
+    };
+  }, [audioSrc, speaking]);
 
-  const bobClass = playing ? 'animate-[bob_1.6s_ease-in-out_infinite]' : '';
+  const bobClass = playing ? 'animate-[bob_1.8s_ease-in-out_infinite]' : '';
+
+  const bars = useMemo(
+    () =>
+      levels.map((h, idx) => ({
+        height: Math.max(6, Math.min(100, h)),
+        delay: `${(idx % 6) * 40}ms`,
+      })),
+    [levels]
+  );
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-soft">
-      <div className="absolute inset-0 bg-gradient-to-b from-brand-100/40 via-white to-white" />
-      <div className={cn('relative p-6 transition-transform', bobClass)}>
-        <Image
-          src={avatarUrl}
-          alt="avatar"
-          width={320}
-          height={380}
-          className="mx-auto h-80 w-72 rounded-3xl object-cover"
-        />
-        <svg className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-72 -translate-x-1/2 -translate-y-1/2" viewBox="0 0 320 380">
-          {mouthShape.width > 0 && (
-            <ellipse
-              cx="160"
-              cy="240"
-              rx={mouthShape.width / 2}
-              ry={mouthShape.height / 2}
-              fill="#e75c74"
-              opacity="0.92"
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-white" />
+      <div className={cn('relative p-8 transition-transform', bobClass)}>
+        <div className="mx-auto flex h-48 w-full max-w-xs items-end justify-between gap-1">
+          {bars.map((bar, i) => (
+            <span
+              key={i}
+              className="block w-[10%] rounded-full bg-gradient-to-t from-brand-500 via-brand-400 to-brand-300"
+              style={{
+                height: `${bar.height}%`,
+                transition: 'height 120ms ease',
+                animation: playing ? `pulse 1.2s ease-in-out infinite` : undefined,
+                animationDelay: bar.delay,
+              }}
             />
-          )}
-          <rect x="120" y="90" width="80" height="20" rx="10" fill="#000" opacity="0.08">
-            <animate attributeName="opacity" values="0.08;0;0.08" dur="6s" repeatCount="indefinite" />
-          </rect>
-        </svg>
+          ))}
+        </div>
+        <p className="mt-4 text-center text-xs uppercase tracking-wide text-slate-500">Голос клиента</p>
       </div>
       <style jsx global>{`
-        @keyframes bob { 0% { transform: translateY(0); } 50% { transform: translateY(-6px); } 100% { transform: translateY(0); } }
+        @keyframes bob { 0% { transform: translateY(0); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
+        @keyframes pulse { 0% { opacity: 0.9; } 50% { opacity: 0.5; } 100% { opacity: 0.9; } }
       `}</style>
     </div>
   );

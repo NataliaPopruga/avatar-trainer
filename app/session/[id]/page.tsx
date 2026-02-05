@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { SessionClient } from './session-client';
 import { avatarForPersona } from '@/lib/providers/avatar';
+import { CARD_BLOCKED_SCRIPT, CARD_BLOCKED_PLAN } from '@/lib/demo/cardBlockedScript';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,12 @@ export default async function SessionPage({ params }: { params: { id: string } }
       meta = {
         plan: { persona: 'zoomer', difficulty: 'hard', goal: 'slang faq', archetypeId: 'demo' },
         stepsTotal: 7,
+      };
+    } else if (sessionId === 5) {
+      meta = {
+        plan: { ...CARD_BLOCKED_PLAN, channel: 'call' },
+        stepsTotal: CARD_BLOCKED_SCRIPT.length,
+        currentStep: 0,
       };
     }
     const avatarUrl = meta.plan ? avatarForPersona(meta.plan.persona) : '/avatars/calm.png';

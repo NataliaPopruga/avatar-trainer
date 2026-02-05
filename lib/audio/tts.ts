@@ -12,8 +12,11 @@ export interface GeneratedSpeech {
 }
 
 export async function generateSpeech(text: string): Promise<GeneratedSpeech> {
-  const wavBytes = sam.buf8(text);
-  const wavBuffer = Buffer.from(wavBytes);
+  const wavBytes = sam.buf8(text) as Uint8Array | null;
+  if (!wavBytes || typeof (wavBytes as any).length !== 'number') {
+    throw new Error('sam-js failed to synthesize');
+  }
+  const wavBuffer = Buffer.from(new Uint8Array(wavBytes));
   const audioData = await WavDecoder.decode(wavBuffer);
   const mono = audioData.channelData[0];
   const resampled = resampleFloat32(mono, audioData.sampleRate, 16000);

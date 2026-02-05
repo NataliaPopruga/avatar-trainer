@@ -7,19 +7,81 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { parseISO, isValid } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ReportsPage() {
+type Search = { [key: string]: string | string[] | undefined };
+
+export default async function ReportsPage({ searchParams }: { searchParams: Search }) {
   const admin = await getAdminSession();
   if (!admin) redirect('/admin');
-  const reports = await prisma.traineeSession.findMany({ orderBy: { startedAt: 'desc' } });
+
+  const q = typeof searchParams.q === 'string' ? searchParams.q.trim() : '';
+  const sort = searchParams.sort === 'asc' ? 'asc' : 'desc';
+  const fromStr = typeof searchParams.from === 'string' ? searchParams.from : '';
+  const toStr = typeof searchParams.to === 'string' ? searchParams.to : '';
+  const fromDate = fromStr ? parseISO(fromStr) : null;
+  const toDate = toStr ? parseISO(toStr) : null;
+
+  const where: any = { AND: [] as any[] };
+  if (q) where.AND.push({ traineeName: { contains: q } }); // SQLite: нет mode, будем добирать кейс-инсенситив позже
+  if (fromDate && isValid(fromDate)) where.AND.push({ startedAt: { gte: fromDate } });
+  if (toDate && isValid(toDate)) where.AND.push({ startedAt: { lte: toDate } });
+  if (where.AND.length === 0) delete where.AND;
+
+  const reportsRaw = await prisma.traineeSession.findMany({
+    where,
+    orderBy: { startedAt: sort },
+  });
+  const qLower = q.toLocaleLowerCase();
+  const reports = q
+    ? reportsRaw.filter((r) => (r.traineeName || '').toLocaleLowerCase().includes(qLower))
+    : reportsRaw;
+
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 pb-16 pt-10">
       <div>
         <p className="text-sm uppercase tracking-wide text-brand-700">Отчёты</p>
         <h1 className="text-3xl font-semibold text-slate-900">Список всех сессий</h1>
       </div>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle>Фильтры</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="flex flex-wrap items-end gap-3" method="get">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">Поиск по имени</label>
+              <Input name="q" defaultValue={q} placeholder="Напр. Иванов" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">С даты</label>
+              <Input type="date" name="from" defaultValue={fromStr} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">По дату</label>
+              <Input type="date" name="to" defaultValue={toStr} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">Сортировка</label>
+              <select
+                name="sort"
+                defaultValue={sort}
+                className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm"
+              >
+                <option value="desc">Новые сверху</option>
+                <option value="asc">Старые сверху</option>
+              </select>
+            </div>
+            <Button type="submit">Применить</Button>
+            <Button type="button" variant="ghost" asChild>
+              <Link href="/admin/reports">Сбросить</Link>
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Сотрудники</CardTitle>

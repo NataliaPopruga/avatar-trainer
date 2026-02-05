@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function TraineeForm() {
@@ -59,7 +58,19 @@ export function TraineeForm() {
                     <p className="text-sm font-semibold text-slate-900">{opt.label}</p>
                     <p className="text-xs text-slate-500">{opt.desc}</p>
                   </div>
-                  <Radio className={cn('h-4 w-4', mode === opt.value ? 'text-brand-600' : 'text-slate-400')} />
+                  <span
+                    className={cn(
+                      'inline-flex h-4 w-4 items-center justify-center rounded-full border',
+                      mode === opt.value ? 'border-brand-600' : 'border-slate-300'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'block h-2 w-2 rounded-full',
+                        mode === opt.value ? 'bg-brand-600' : 'bg-transparent'
+                      )}
+                    />
+                  </span>
                 </div>
               </button>
             ))}
